@@ -42,3 +42,40 @@ class FactEventTelemetry(Base):
 
 # Materialized View Definition (SQLAlchemy doesn't support CREAT MATERIALIZED VIEW natively well in ORM models, 
 # so we will execute raw SQL in the seeder/migration).
+
+from sqlalchemy import func, JSON
+
+class Supplier(Base):
+    __tablename__ = 'suppliers'
+    supplier_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_name = Column(String, nullable=False)
+    supplied_good = Column(String)
+    location = Column(String)
+    processes = Column(JSON) # List of process steps
+
+    # Relationships
+    orders = relationship("Order", back_populates="supplier")
+
+class Order(Base):
+    __tablename__ = 'orders'
+    order_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    retailer_id = Column(String, index=True)
+    supplier_id = Column(String, ForeignKey('suppliers.supplier_id'), index=True)
+    product = Column(String)
+    quantity = Column(Integer)
+    required_date = Column(String) # ISO 8601
+    status = Column(String, default="PENDING") # PENDING, IN_PROGRESS, DELAYED, COMPLETED
+    batch_id = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    supplier = relationship("Supplier", back_populates="orders")
+
+class User(Base):
+    __tablename__ = 'users'
+    user_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, unique=True, index=True)
+    password_hash = Column(String) # Plaintext for prototype as requested
+    role = Column(String) # 'retailer' or 'supplier'
+    company_name = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

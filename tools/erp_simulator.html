@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valley Farms Legacy MES v4.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #d1d5db;
+        }
+
+        .win95-box {
+            background-color: #c0c0c0;
+            border-top: 2px solid #ffffff;
+            border-left: 2px solid #ffffff;
+            border-right: 2px solid #404040;
+            border-bottom: 2px solid #404040;
+            box-shadow: 2px 2px 0px #000000;
+        }
+
+        .win95-inset {
+            background-color: #ffffff;
+            border-top: 2px solid #404040;
+            border-left: 2px solid #404040;
+            border-right: 2px solid #ffffff;
+            border-bottom: 2px solid #ffffff;
+        }
+
+        .win95-btn {
+            background-color: #c0c0c0;
+            border-top: 2px solid #ffffff;
+            border-left: 2px solid #ffffff;
+            border-right: 2px solid #404040;
+            border-bottom: 2px solid #404040;
+            active: border-top: 2px solid #404040;
+            active: border-left: 2px solid #404040;
+        }
+
+        .win95-btn:active {
+            border-top: 2px solid #404040;
+            border-left: 2px solid #404040;
+            border-right: 2px solid #ffffff;
+            border-bottom: 2px solid #ffffff;
+            transform: translate(1px, 1px);
+        }
+
+        .win95-header {
+            background: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+            color: white;
+            font-weight: bold;
+            padding: 2px 4px;
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center h-screen p-4">
+
+    <div class="win95-box w-full max-w-md p-1">
+        <div class="win95-header flex justify-between items-center mb-4">
+            <span>Valley Farms MES - Terminal 04</span>
+            <button class="win95-btn px-2 font-bold text-black text-xs">X</button>
+        </div>
+
+        <div class="p-4 space-y-6">
+            <div class="text-xs font-bold mb-4">Legacy Connector Module (HTTP/1.1)</div>
+
+            <form id="erpForm" class="space-y-4">
+
+                <!-- API Key -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold uppercase">System Key</label>
+                    <input type="text" id="api_key" value="sk_hackathon_demo_123"
+                        class="win95-inset w-full p-1 text-sm bg-gray-100 font-mono text-gray-600 cursor-not-allowed"
+                        readonly>
+                </div>
+
+                <!-- Batch ID -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold uppercase">Batch Serial #</label>
+                    <input type="text" id="batch_id" value="ORD-2024-001"
+                        class="win95-inset w-full p-1 text-sm bg-white font-mono border-gray-400 focus:outline-none">
+                </div>
+
+                <hr class="border-gray-500 border-dashed">
+
+                <!-- Step Selection -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold uppercase">Process Node</label>
+                    <select id="step_name" class="win95-inset w-full p-1 text-sm bg-white font-mono border-gray-400">
+                        <option value="Raw Material Sourcing">Raw Material Sourcing (Tier 2)</option>
+                        <option value="Tier 2 Farm Harvesting (Valley Farms)">-- Harvesting (Valley Farms)</option>
+                        <option value="Tier 2 Salt Mining (OceanMin)">-- Salt Mining (OceanMin)</option>
+                        <option value="Tier 1 Processing">Tier 1 Processing (VRT Nuts)</option>
+                        <option value="Roasting">-- Roasting</option>
+                        <option value="Quality Control">-- Quality Control</option>
+                        <option value="Packaging">-- Packaging</option>
+                        <option value="Retail Logistics">Retail Logistics (MegaMart)</option>
+                        <option value="Shipping">-- Shipping</option>
+                        <option value="Delivery">-- Delivery</option>
+                    </select>
+                </div>
+
+                <!-- Status -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold uppercase">New Status</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="status" value="Completed" checked>
+                            <span class="text-sm font-bold text-green-700">OK / COMPLETED</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="status" value="Delayed">
+                            <span class="text-sm font-bold text-red-700">DELAY / ERROR</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Variance -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold uppercase">Variance (Hours)</label>
+                    <input type="number" id="variance_hrs" value="0.0" step="0.5"
+                        class="win95-inset w-full p-1 text-sm bg-white font-mono border-gray-400">
+                </div>
+
+                <!-- Submit -->
+                <div class="pt-4 flex justify-end">
+                    <button type="submit"
+                        class="win95-btn px-6 py-2 font-bold text-sm hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-transform">
+                        TRANSMIT UPDATE >>
+                    </button>
+                </div>
+
+            </form>
+
+            <!-- Console Output -->
+            <div class="win95-inset h-24 p-2 overflow-y-auto bg-black text-green-400 font-mono text-xs" id="console">
+                > SYSTEM READY...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('erpForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const consoleDiv = document.getElementById('console');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+
+            // Collect Data
+            const payload = {
+                api_key: document.getElementById('api_key').value,
+                batch_id: document.getElementById('batch_id').value,
+                step_name: document.getElementById('step_name').value,
+                status: document.querySelector('input[name="status"]:checked').value,
+                variance_hrs: parseFloat(document.getElementById('variance_hrs').value)
+            };
+
+            // Loading State
+            submitBtn.disabled = true;
+            submitBtn.innerText = "TRANSMITTING...";
+            consoleDiv.innerHTML += `\n> Sending packet to localhost:8000...`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+            try {
+                const res = await fetch('http://localhost:8000/api/webhook/erp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.detail || 'Connection refused');
+
+                consoleDiv.innerHTML += `\n> [SUCCESS] 200 OK`;
+                consoleDiv.innerHTML += `\n> Updated: ${payload.step_name} -> ${payload.status}`;
+                alert("UPDATE SUCCESSFUL: Order Lineage has been updated.");
+
+            } catch (err) {
+                console.error(err);
+                consoleDiv.innerHTML += `\n> [ERROR] ${err.message}`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "TRANSMIT UPDATE >>";
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+        });
+    </script>
+</body>
+
+</html>

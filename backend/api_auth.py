@@ -29,23 +29,35 @@ class Token(BaseModel):
 # User wants "Success -> save user info".
 
 @router.post("/login", response_model=Token)
-def login(user: UserLogin):
-    # Mock Authentication Logic
-    # In a real app: verify password hash from DB
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    from .models_v2 import User
     
-    role = "supplier"
-    if "admin" in user.email:
-        role = "retailer" # The "Control Tower" user
+    # 1. Fetch User
+    db_user = db.query(User).filter(User.email == user.email).first()
+    
+    # 2. Verify Password (Plaintext for prototype)
+    if not db_user or db_user.password_hash != user.password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
         
-    # Create Token
+    # 3. Create Token
     expire = datetime.utcnow() + timedelta(hours=24)
-    to_encode = {"sub": user.email, "role": role, "exp": expire}
+    to_encode = {
+        "sub": db_user.email,
+        "role": db_user.role,
+        "user_id": db_user.user_id,
+        "company": db_user.company_name,
+        "exp": expire
+    }
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     
     return {
         "access_token": encoded_jwt,
         "token_type": "bearer",
-        "user_role": role
+        "user_role": db_user.role
     }
 
 @router.post("/register", response_model=Token)
