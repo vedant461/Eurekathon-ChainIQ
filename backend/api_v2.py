@@ -825,34 +825,74 @@ class AnalyzeRequest(BaseModel):
 def analyze_order_lineage(order_id: str, req: AnalyzeRequest):
     """
     Analyzes the order lineage and returns an AI-generated insight.
-    Uses OpenAI if available, otherwise falls back to a smart heuristic.
+    Uses OpenAI/Ollama to generate dynamic recovery protocols.
     """
+    from openai import OpenAI
+    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+    
     lineage = req.lineage
     telemetry = lineage.get("telemetry", [])
     
-    # Check for delays
-    delayed_steps = [s for s in telemetry if s.get("status") in ["Delayed", "Pending"] and s.get("variance_hrs", 0) > 0]
+    # Check for delays - ONLY rely on variance > 0 or explicit Delayed status
+    delayed_steps = [s for s in telemetry if s.get("variance_hrs", 0) > 0 or str(s.get("status", "")).lower() == "delayed"]
     
-    # Heuristic Analysis
+    # Heuristic Analysis if no delays
     if not delayed_steps:
         return {"analysis": "✅ **Supply Chain Operating at Optimal Velocity**\n\nMetric Analysis:\n- Zero critical bottlenecks detected.\n- Throughput variance is within acceptable tolerance (±2%).\n- Predictive arrival time aligns with promised SLA.\n\nRecommendation: No intervention required."}
         
-    # Generate dynamic "AI" response for delays
-    analysis = "⚠️ **Critical Latency Detected in Supply Chain Node(s)**\n\n"
-    for step in delayed_steps:
-        step_name = step.get("step_name", "Unknown Step")
-        variance = step.get("variance_hrs", 0)
-        analysis += f"- **{step_name}**: Detected {variance}h variance against baseline.\n"
+    # Generate dynamic "AI" response for delays using Ollama
+    try:
+        # Construct a prompt describing the issue
+        delay_context = []
+        for step in delayed_steps:
+            step_name = step.get("step_name", "Unknown Step")
+            variance = step.get("variance_hrs", 0)
+            delay_context.append(f"- {step_name}: {variance} hours delayed.")
+            
+        import requests
         
-    analysis += "\n**Root Cause Probability:**\n"
-    analysis += "- 78% likelihood of resource constraint at Tier 2 node.\n"
-    analysis += "- 22% likelihood of logistics congestion.\n\n"
-    
-    analysis += "**Recommended Recovery Protocol:**\n"
-    analysis += "1. Activate 'Expedited Freight' option for downstream logistics.\n"
-    analysis += "2. Notify downstream distribution center of +4h expected slide.\n"
-    
-    return {"analysis": analysis}
+        prompt = (
+            "You are an expert Supply Chain AI Agent (ChainIQ). "
+            f"An active order ({order_id}) is experiencing the following delays in its manufacturing lineage:\n"
+            + "\n".join(delay_context) +
+            "\n\nWrite a highly professional, concise root cause analysis (2 bullet points) and a actionable recovery protocol (2 steps). "
+            "Format your response with markdown, using '⚠️ **Critical Latency Detected**' as a header. "
+            "Do not include introductory filler text. Be direct and analytical."
+        )
+        
+        payload = {
+            "model": "llama3.2:3b",
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=30)
+        response.raise_for_status()
+        
+        analysis = response.json().get("response", "").strip()
+        
+        if not analysis:
+            raise ValueError("Empty response from Ollama")
+            
+        return {"analysis": analysis}
+        
+    except Exception as e:
+        print(f"AI Analytics Generation Error: {e}")
+        # Fallback to smart heuristic if AI fails
+        analysis = "⚠️ **Critical Latency Detected in Supply Chain Node(s)**\n\n"
+        for step in delayed_steps:
+            step_name = step.get("step_name", "Unknown Step")
+            variance = step.get("variance_hrs", 0)
+            analysis += f"- **{step_name}**: Detected {variance}h variance against baseline.\n"
+            
+        analysis += "\n**Root Cause Probability:**\n"
+        analysis += "- High likelihood of resource constraint or logistics congestion at bottleneck node.\n"
+        
+        analysis += "\n**Recommended Recovery Protocol (Fallback):**\n"
+        analysis += "1. Investigate immediate node constraint.\n"
+        analysis += "2. Notify downstream partners of expected slide.\n"
+        
+        return {"analysis": analysis}
 
 # --- AI Analysis Endpoint (Fixed) ---
 class AnalyzeRequest(BaseModel):
